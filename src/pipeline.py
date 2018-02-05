@@ -1,40 +1,138 @@
 
+import cv2
+import glob
+import numpy as np
+import pickle
+from camera import load_params
+from detect import *
+from moviepy.editor import VideoFileClip
+import matplotlib.pyplot as plt 
 
-# Read in the original test image
-def test_image():
-    #img = cv2.imread ('test_images/test5.jpg')
-    img = cv2.imread('test_images/test2.jpg')
-    # undistort it
-    undist = undistort_img(img)
+cameraCaleb = load_params()
 
-    # color and gradient
-    gray_bin = pipeline(undist)
 
-    # transform
-    warped, M, Minv = transform(gray_bin)
+def visualisePolyFit (outfilepath, binary_warped, left_fit, right_fit, leftLaneInds, rightLaneInds):
+    """ visualisePolyFit """
 
-    # fit lanes (left & right)
-    leftLane, rightLane, leftLaneInds, rightLaneInds, histogram, out_img = fitPolyLanes(warped)
+    nonzero = binary_warped.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
+    margin = 100
 
-    # draw lane fits
-    drawn = visualisePolyFit(warped, leftLane, rightLane, leftLaneInds, rightLaneInds)
+    left_lane_inds = ((nonzerox > (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy +  left_fit[2] - margin)) & (nonzerox < (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] + margin)))
+    right_lane_inds = ((nonzerox > (right_fit[0] * (nonzeroy ** 2) + right_fit[1] * nonzeroy +  right_fit[2] - margin)) & (nonzerox < (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] + margin)))  
 
-    # draw the green zone for the car
-    img_zone = overlayGreenZone (undist, warped, leftLane, rightLane)
+    # Again, extract left and right line pixel positions
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds] 
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds]
+    # Fit a second order polynomial to each
+    left_fit = np.polyfit(lefty, leftx, 2)
+    right_fit = np.polyfit(righty, rightx, 2)
+    # Generate x and y values for plotting
+    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
+    left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
+    right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
 
-    plt.imshow(histogram)
+    # Create an image to draw on and an image to show the selection window
+    out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
+    window_img = np.zeros_like(out_img)
+    # Color in left and right line pixels
+    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
 
+    # Generate a polygon to illustrate the search window area
+    # And recast the x and y points into usable format for cv2.fillPoly()
+    left_line_window1 = np.array([np.transpose(np.vstack([left_fitx-margin, ploty]))])
+    left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx+margin, 
+                                ploty])))])
+    left_line_pts = np.hstack((left_line_window1, left_line_window2))
+    right_line_window1 = np.array([np.transpose(np.vstack([right_fitx-margin, ploty]))])
+    right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx+margin, 
+                                ploty])))])
+    right_line_pts = np.hstack((right_line_window1, right_line_window2))
+
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(window_img, np.int_([left_line_pts]), (0,255, 0))
+    cv2.fillPoly(window_img, np.int_([right_line_pts]), (0,255, 0))
+
+    # Plot the actual lines
+    plt.clf()
+
+    result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
+    plt.imshow(result)
+    plt.plot(left_fitx, ploty, color='yellow')
+    plt.plot(right_fitx, ploty, color='yellow')
+    plt.xlim(0, 1280)
+    plt.ylim(720, 0)
+
+    plt.savefig(outfilepath)
+
+def overlayGreenZone(undist, warped, Minv, leftLaneFit, rightLaneFit):
+    """ Overlay a green zone on the original image """
+    
+    # Get the x,y of the fitted lines
+    ploty = np.linspace(0, undist.shape[0]-1, undist.shape[0])
+    left_fitx = leftLaneFit[0]*ploty**2 + leftLaneFit[1]*ploty + leftLaneFit[2]
+    right_fitx = rightLaneFit[0]*ploty**2 + rightLaneFit[1]*ploty + rightLaneFit[2]
+    
+    # Create an image to draw the lines on
+    warp_zero = np.zeros_like(warped).astype(np.uint8)
+    color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+    
+    # Recast the x and y points into usable format for cv2.fillPoly()
+    pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
+    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+    pts = np.hstack((pts_left, pts_right))
+    
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
+    
+    # Warp the blank back to original image space using inverse perspective matrix (Minv)
+    newwarp = cv2.warpPerspective(color_warp, Minv, (undist.shape[1], undist.shape[0]))
+    
+    # Combine the result with the original image
+    return cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
+
+def undistort_img(img):
+    return cv2.undistort(img, cameraCaleb['mtx'], cameraCaleb['dist'], None, cameraCaleb['mtx'])
+
+def process_image (img):
+    """ Functions that's called when processing the video """
+
+    l = Lines(cameraCaleb)
+
+    out_img = l.process_frame(img)
+
+    return out_img
 
 def run_test_images():
     """ Run all of the test images """
 
-    for g in glob.glob("../test_images"):
-        pass
-
+    for idx, g in enumerate(glob.glob("../test_images/*.jpg")):
         
+        print ("processing [%s]" % g)
 
+        img = process_image(cv2.imread(g))
+
+        outpath = "../test_images_output/test_%d.jpg" % idx
+        outpath_hist = "../test_images_output/test_hist%d.jpg" % idx
+
+        # Save th
+        plt.clf()
+        plt.imshow(img)
+        plt.savefig(outpath)
+#        cv2.imwrite(outpath, np.as_int(warped) * 255)
+    
 
 def run_video():
     white_output = 'output_videos/challenge_video.mp4'
     clip1 = VideoFileClip("input_videos/challenge_video.mp4").subclip(0,10)
     white_clip = clip1.fl_image(process_image)
+
+if __name__ == "__main__":
+    try:
+        run_test_images()
+    except Exception as e:
+        print ("Failed to run test images [%s]" % str(e))

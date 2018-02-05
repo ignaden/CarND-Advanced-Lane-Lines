@@ -6,53 +6,77 @@ import pickle
 import copy as cp
 import glob
 
-# chessboard size is different in this one
-nx, ny = 9, 6
+def save_params(cameraCaleb):
+    """ Save the calibrated camera parameters. """
+    
+    print ("Saving results to `cameraCaleb.pickle`")
+    with open('../cameraCaleb.pickle', 'wb') as f:
+        pickle.dump(cameraCaleb, f)
+    
+def load_params ():
+    """ Load the calibrated camera parameters """
+    
+    print ("Loading parameters from `cameraCaleb.pickle`")    
+    cameraCaleb = None
+    with open('../cameraCaleb.pickle', 'rb') as f:
+        cameraCaleb = pickle.load(f)
 
-objp = np.zeros((nx * ny, 3), np.float32)
-objp[:,:2] = np.mgrid[0:nx, 0:ny].T.reshape(-1,2)
+    return cameraCaleb
 
-# Arrays to store object points and image points from all the images.
-objpoints = [] # 3d points in real world space
-imgpoints = [] # 2d points in image plane.
+def calibrate_camera(debug=True):
 
-# Make a list of calibration images
-images = glob.glob('../camera_cal/calibration*.jpg')
-#images = [ 'camera_cal/calibration2.jpg' ]
+    # chessboard size is different in this one
+    nx, ny = 9, 6
 
-# Step through the list and search for chessboard corners
-foundCount = 0
-for idx, fname in enumerate(images):
-    img = cv2.imread(fname)
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    objp = np.zeros((nx * ny, 3), np.float32)
+    objp[:,:2] = np.mgrid[0:nx, 0:ny].T.reshape(-1,2)
 
-    ret, corners = cv2.findChessboardCorners(gray_img, (nx, ny), None)
+    # Arrays to store object points and image points from all the images.
+    objpoints = [] # 3d points in real world space
+    imgpoints = [] # 2d points in image plane.
 
-    if ret == True:
-        foundCount += 1
-        objpoints.append(objp)
-        imgpoints.append(corners)
+    # Make a list of calibration images
+    images = glob.glob('../camera_cal/calibration*.jpg')
+    #images = [ 'camera_cal/calibration2.jpg' ]
 
-        # Draw and display the corners
-        cv2.drawChessboardCorners(img, (nx, ny), corners, ret)
+    # Step through the list and search for chessboard corners
+    foundCount = 0
+    for idx, fname in enumerate(images):
+        img = cv2.imread(fname)
+        gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-print ('Found chessboard in %d out of %d images' % (foundCount, len(images)))
+        ret, corners = cv2.findChessboardCorners(gray_img, (nx, ny), None)
 
-# Test undistortion on an image
-img = cv2.imread('../camera_cal/calibration1.jpg')
-img_size = (img.shape[1], img.shape[0])
+        if ret == True:
+            foundCount += 1
+            objpoints.append(objp)
+            imgpoints.append(corners)
 
-# Do camera calibration given object points and image points
-ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_size, None, None)
-cameraCaleb = {
-    'ret' : ret
-    , 'mtx' : mtx
-    , 'dist': dist
-    , 'rvecs' : rvecs
-    , 'tvecs' : tvecs
-}
+            # Draw and display the corners
+            cv2.drawChessboardCorners(img, (nx, ny), corners, ret)
 
-print ("Saving results to `cameraCaleb.pickle`")
-with open('../cameraCaleb.pickle', 'wb') as f:
-    pickle.dump(cameraCaleb, f)
+    if debug:
+        print ('Found chessboard in %d out of %d images' % (foundCount, len(images)))
 
+    # Test undistortion on an image
+    img = cv2.imread('../camera_cal/calibration1.jpg')
+    img_size = (img.shape[1], img.shape[0])
+
+    # Do camera calibration given object points and image points
+    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_size, None, None)
+
+    cameraCaleb = {
+        'ret' : ret
+        , 'mtx' : mtx
+        , 'dist': dist
+        , 'rvecs' : rvecs
+        , 'tvecs' : tvecs
+    }
+
+    save_params(cameraCaleb)
+
+if __name__ == "__main__":
+    try:
+        calibrate_camera()
+    except Exception as e:
+        print ("Failed to calibrate the camera: [%s]" % str(e))
