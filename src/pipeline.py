@@ -5,6 +5,7 @@ import numpy as np
 import pickle
 from camera import load_params
 from detect import *
+import matplotlib.image as mpimg
 from moviepy.editor import VideoFileClip
 import matplotlib.pyplot as plt 
 
@@ -95,26 +96,16 @@ def overlayGreenZone(undist, warped, Minv, leftLaneFit, rightLaneFit):
     # Combine the result with the original image
     return cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
 
-def undistort_img(img):
-    return cv2.undistort(img, cameraCaleb['mtx'], cameraCaleb['dist'], None, cameraCaleb['mtx'])
-
-def process_image (img):
-    """ Functions that's called when processing the video """
-
-    l = Lines(cameraCaleb)
-
-    out_img = l.process_frame(img)
-
-    return out_img
-
-def run_test_images():
+def run_test_images(params):
     """ Run all of the test images """
 
     for idx, g in enumerate(glob.glob("../test_images/*.jpg")):
         
         print ("processing [%s]" % g)
 
-        img = process_image(cv2.imread(g))
+        l = Lines(idx, cameraCaleb, params, True, "test_output")
+        #img = l.process_frame(cv2.imread(g))
+        img = l.process_frame (mpimg.imread(g))
 
         outpath = "../test_images_output/test_%d.jpg" % idx
         outpath_hist = "../test_images_output/test_hist%d.jpg" % idx
@@ -131,8 +122,15 @@ def run_video():
     clip1 = VideoFileClip("input_videos/challenge_video.mp4").subclip(0,10)
     white_clip = clip1.fl_image(process_image)
 
+params = {
+  'color_trans' : {
+    's_thresh' : (170, 255),
+    'sx_thresh' : (40, 100)
+  }
+}
+
 if __name__ == "__main__":
     try:
-        run_test_images()
+        run_test_images(params)
     except Exception as e:
         print ("Failed to run test images [%s]" % str(e))
