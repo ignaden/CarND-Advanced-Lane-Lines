@@ -50,10 +50,12 @@ class Line():
     def fitExists(self):
         return self.detected
 
-    def updateFitDetails(self, new_fit):
+    def updateFitDetails(self, new_fit, allx, ally):
         """ Update the new fit details """
         self.detected = True
         self.current_fit = new_fit
+        self.allx = allx
+        self.ally = ally
 
         if self.best_fit is None:
             self.best_fit = new_fit
@@ -98,7 +100,7 @@ class Lines:
 
             left_fit = np.polyfit(lefty, leftx, 2)
 
-            self._leftLine.updateFitDetails(left_fit)
+            self._leftLine.updateFitDetails(left_fit, leftx, lefty)
 
         if fit_right:
             right_fit = self._rightLine.current_fit
@@ -113,7 +115,7 @@ class Lines:
         
             right_fit = np.polyfit(righty, rightx, 2)
 
-            self._rightLine.updateFitDetails(right_fit)
+            self._rightLine.updateFitDetails(right_fit, rightx, righty)
 
     def fit_new_lines (self, binary_warped, fit_left=True, fit_right=True):
         """ fitPolyLanes - fit a polynomial curve """
@@ -221,6 +223,41 @@ class Lines:
             updateLeft = not self._leftLine.fitExists()
             updateRight = not self._rightLine.fitExists()
             self.fit_new_lines(warped, updateLeft, updateRight)
+        
+        # Draw the lines here!
+
+        if not (self._leftLine.fitExists() and self._rightLine.fitExists()):
+          # Get out here
+          return None
+        
+        # Create an image to draw on and an image to show the selection window
+        warped      = warped.astype(np.uint8)
+        out_img     = np.dstack((warped, warped, warped)) * 255
+        window_img  = np.zeros_like(out_img)
+
+        # Color in left and right line pixels
+        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]]   = [255, 0, 0]
+        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+
+        # 
+        left_fitx, right_fitx = self._leftLine.bestx, self._rightLine.besty
+
+        # Generate a polygon to illustrate the search window area
+        # And recast the x and y points into usable format for cv2.fillPoly()
+        left_line_window1   = np.array([np.transpose(np.vstack([left_fitx - self._params['fit']['margin'], ploty]))])
+        left_line_window2   = np.array([np.flipud(np.transpose(np.vstack([left_fitx + self._params['fit']['margin'], ploty])))])
+        left_line_pts       = np.hstack((left_line_window1, left_line_window2))
+        
+        # Draw out the right side!
+        right_line_window1  = np.array([np.transpose(np.vstack([right_fitx - self._params['fit']['margin'], ploty]))])
+        right_line_window2  = np.array([np.flipud(np.transpose(np.vstack([right_fitx + self._params['fit']['margin'], ploty])))])
+        right_line_pts      = np.hstack((right_line_window1, right_line_window2))
+
+        # Draw the lane onto the warped blank image
+        cv2.fillPoly(window_img, np.int_([left_line_pts]),  (0, 255, 0))
+        cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
+        
+        return cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
     @staticmethod
     def abs_sobel_thresh(img, orient='x', thresh_min=0, thresh_max=255):
@@ -307,9 +344,41 @@ class Lines:
         return cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
     
     def make_out_path (self, img_type):
-      return path.join(self._output_dir, "%d_%s.jpg" % (self._runId, img_type))
+        return path.join(self._output_dir, "%d_%s.jpg" % (self._runId, img_type))
 
-    def process_frame (self, img):
+    def overlay_data (self, img_greenzone, gray_bin, warped, lines, curvature):
+        """ """
+
+        # Now draw out the current curvature, center of the lane, etc.
+        height, weight = img_greenzone.shape[0], img_greenzone.shape[1]
+
+        # Create the thumbmail images
+        thumb_size = dsize(int(self._params['thumb_ratio'] * height), int(self._params['thumb_ratio'] * weight))
+        thumb_weight = int(self._params['thumb_ratio'] * weight)
+
+
+        # Calculate thumbs
+        thumb_gray_bin  = cv2.resize(gray_bin,  dsize=self._params['thumb_size'])
+        thumb_lines     = cv2.resize(lines,     dsize=self._params['thumb_size'])
+        thumb_warped    = cv2.resize(warped,    dsize=self._params['thumb_size'])
+
+        off_x, off_y    = 20, 45
+
+        # add a semi-transparent rectangle to highlight thumbnails on the left
+        mask            = cv2.rectangle(img_greenzone.copy(), (0, 0), (2*off_x + thumb_w, height), (0, 0, 0), thickness=cv2.FILLED)
+        img_blend       = cv2.addWeighted(src1=mask, alpha=0.2, src2=img_greenzone, beta=0.8, gamma=0)
+
+        # stitch thumbnails here
+        img_blend[off_y:off_y+thumb_h, off_x:off_x+thumb_w, :]                  = thumb_gray_bin
+        img_blend[2*off_y+thumb_h:2*(off_y+thumb_h), off_x:off_x+thumb_w, :]    = thumb_lines
+        img_blend[3*off_y+2*thumb_h:3*(off_y+thumb_h), off_x:off_x+thumb_w, :]  = thumb_warped
+
+        # Write out the current fit statistics
+        # TODO calculate the 
+
+        return img_blend
+
+    def process_frame (self, img, overlay=False):
         """ The 'main' function """
         # Step 1: Undistort the image
         try:
@@ -354,7 +423,7 @@ class Lines:
 
         # Step 4: Update lane information
         try:
-          self.fit_lines (warped)
+          lines = self.fit_lines (warped)
           if self._debug: print ('Updating fits')
         except Exception as e:
           raise Exception ('Failed to update line fits [%s]' % str(e))
@@ -372,6 +441,9 @@ class Lines:
           plt.clf()
           plt.imshow(img_greenzone)
           plt.savefig(outpath)
+
+        if overlay:
+            img_greenzone = Lines.overlay_data (img_greenzone, gray_bin, warped, lines, curvature)
 
         return img_greenzone
     

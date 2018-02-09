@@ -124,7 +124,7 @@ def process_image(img):
 
 def run_video(params):
 
-    # 
+    # Global lines object
     global lines
     lines = Lines(0, cameraCaleb, params, False, "video")
 
