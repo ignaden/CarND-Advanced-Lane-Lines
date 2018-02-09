@@ -196,7 +196,7 @@ class Lines:
             lefty = nonzeroy[left_lane_inds]
 
             left_fit = np.polyfit(lefty, leftx, 2)
-            self._leftLine.updateFitDetails(left_fit)
+            self._leftLine.updateFitDetails(left_fit, leftx, lefty)
         
         # Do the same thing, but for the right lane
         if fit_right:
@@ -206,7 +206,7 @@ class Lines:
             righty = nonzeroy[right_lane_inds]
 
             right_fit = np.polyfit(righty, rightx, 2)
-            self._rightLine.updateFitDetails(right_fit)
+            self._rightLine.updateFitDetails(right_fit, rightx, righty)
 
     def fit_lines (self, warped):
         """ Attempt to use existing fits, restart if not. """
@@ -236,27 +236,24 @@ class Lines:
         window_img  = np.zeros_like(out_img)
 
         # Color in left and right line pixels
-        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]]   = [255, 0, 0]
-        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-
-        # 
-        left_fitx, right_fitx = self._leftLine.bestx, self._rightLine.besty
+        out_img[self._leftLine.ally,  self._leftLine.allx]  = [255, 0, 0]
+        out_img[self._rightLine.ally, self._rightLine.allx] = [0, 0, 255]
 
         # Generate a polygon to illustrate the search window area
         # And recast the x and y points into usable format for cv2.fillPoly()
-        left_line_window1   = np.array([np.transpose(np.vstack([left_fitx - self._params['fit']['margin'], ploty]))])
-        left_line_window2   = np.array([np.flipud(np.transpose(np.vstack([left_fitx + self._params['fit']['margin'], ploty])))])
+        left_line_window1   = np.array([np.transpose(np.vstack([self._leftLine.allx - self._params['fit']['margin'], self._leftLine.ally]))])
+        left_line_window2   = np.array([np.flipud(np.transpose(np.vstack([self._leftLine.allx + self._params['fit']['margin'], self._leftLine.ally])))])
         left_line_pts       = np.hstack((left_line_window1, left_line_window2))
         
         # Draw out the right side!
-        right_line_window1  = np.array([np.transpose(np.vstack([right_fitx - self._params['fit']['margin'], ploty]))])
-        right_line_window2  = np.array([np.flipud(np.transpose(np.vstack([right_fitx + self._params['fit']['margin'], ploty])))])
+        right_line_window1  = np.array([np.transpose(np.vstack([self._rightLine.allx - self._params['fit']['margin'], self._rightLine.ally]))])
+        right_line_window2  = np.array([np.flipud(np.transpose(np.vstack([self._rightLine.allx + self._params['fit']['margin'], self._rightLine.ally])))])
         right_line_pts      = np.hstack((right_line_window1, right_line_window2))
 
         # Draw the lane onto the warped blank image
         cv2.fillPoly(window_img, np.int_([left_line_pts]),  (0, 255, 0))
         cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
-        
+
         return cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
     @staticmethod
@@ -346,36 +343,50 @@ class Lines:
     def make_out_path (self, img_type):
         return path.join(self._output_dir, "%d_%s.jpg" % (self._runId, img_type))
 
-    def overlay_data (self, img_greenzone, gray_bin, warped, lines, curvature):
-        """ """
-
+    def overlay_data (self, img_greenzone, gray_bin, warped, lines):
         # Now draw out the current curvature, center of the lane, etc.
-        height, weight = img_greenzone.shape[0], img_greenzone.shape[1]
+        height, width  = img_greenzone.shape[0], img_greenzone.shape[1]
 
         # Create the thumbmail images
-        thumb_size = dsize(int(self._params['thumb_ratio'] * height), int(self._params['thumb_ratio'] * weight))
-        thumb_weight = int(self._params['thumb_ratio'] * weight)
-
+        thumb_h, thumb_w = int(height * self._params['thumb_ratio']), int(width * self._params['thumb_ratio'])
+        thumb_size = (thumb_w, thumb_h)
 
         # Calculate thumbs
-        thumb_gray_bin  = cv2.resize(gray_bin,  dsize=self._params['thumb_size'])
-        thumb_lines     = cv2.resize(lines,     dsize=self._params['thumb_size'])
-        thumb_warped    = cv2.resize(warped,    dsize=self._params['thumb_size'])
+        gray_bin = np.dstack((gray_bin, gray_bin, gray_bin)) * 255
+        thumb_gray_bin  = cv2.resize(gray_bin,  dsize = thumb_size)
+
+        #lines = np.dstack((lines, lines, lines)) * 255
+        thumb_lines     = cv2.resize(lines,     dsize = thumb_size)
+
+        warped = np.dstack((warped, warped, warped)) * 255
+        thumb_warped    = cv2.resize(warped,    dsize = thumb_size)
 
         off_x, off_y    = 20, 45
 
-        # add a semi-transparent rectangle to highlight thumbnails on the left
-        mask            = cv2.rectangle(img_greenzone.copy(), (0, 0), (2*off_x + thumb_w, height), (0, 0, 0), thickness=cv2.FILLED)
-        img_blend       = cv2.addWeighted(src1=mask, alpha=0.2, src2=img_greenzone, beta=0.8, gamma=0)
+        # Add a semi-transparent rectangle to highlight thumbnails on the left
+        mask            = cv2.rectangle(img_greenzone.copy(), (0, 0), (2 * off_x + thumb_w, height), (0, 0, 0), thickness=cv2.FILLED)
+        img_blend       = cv2.addWeighted(src1 = mask, alpha = 0.2, src2 = img_greenzone, beta = 0.8, gamma = 0)
 
-        # stitch thumbnails here
-        img_blend[off_y:off_y+thumb_h, off_x:off_x+thumb_w, :]                  = thumb_gray_bin
-        img_blend[2*off_y+thumb_h:2*(off_y+thumb_h), off_x:off_x+thumb_w, :]    = thumb_lines
-        img_blend[3*off_y+2*thumb_h:3*(off_y+thumb_h), off_x:off_x+thumb_w, :]  = thumb_warped
+        # Stitch thumbnails here
+        img_blend[off_y : off_y + thumb_h, off_x : off_x + thumb_w, :]                          = thumb_gray_bin
+        img_blend[2 * off_y + thumb_h : 2 * (off_y + thumb_h), off_x : off_x + thumb_w, :]      = thumb_lines
+        img_blend[3 * off_y + 2 * thumb_h : 3 * (off_y + thumb_h), off_x : off_x + thumb_w, :]  = thumb_warped
 
         # Write out the current fit statistics
-        # TODO calculate the 
+        # Define conversions in x and y from pixels space to meters
+        ym_per_pix = 30 / 720   # meters per pixel in y dimension
+        xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
 
+        # If we have a fit for the left line
+        if self._leftLine.fitExists():
+            left_fit_cr     = np.polyfit(self._leftLine.ally * ym_per_pix, self._leftLine.allx * xm_per_pix, 2)
+            left_curverad   = ((1 + (2 * left_fit_cr[0] * self._leftLine.ally * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * left_fit_cr[0])
+        
+        # Same thing for the right line
+        if self._rightLine.fitExists():
+            right_fit_cr    = np.polyfit(self._leftLine.ally * ym_per_pix, self._leftLine.allx * xm_per_pix, 2)
+            right_curverad  = ((1 + (2 * right_fit_cr[0] * self._leftLine.ally * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * right_fit_cr[0])
+        
         return img_blend
 
     def process_frame (self, img, overlay=False):
@@ -443,7 +454,7 @@ class Lines:
           plt.savefig(outpath)
 
         if overlay:
-            img_greenzone = Lines.overlay_data (img_greenzone, gray_bin, warped, lines, curvature)
+            img_greenzone = self.overlay_data (img_greenzone, gray_bin, warped, lines)
 
         return img_greenzone
     

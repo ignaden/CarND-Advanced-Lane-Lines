@@ -120,7 +120,7 @@ lines = None
 def process_image(img):
     """ """
     global lines
-    return lines.process_frame(img)
+    return lines.process_frame(img, True)
 
 def run_video(params):
 
@@ -132,7 +132,7 @@ def run_video(params):
     white_output = '../output_videos/project_video.mp4'
 
     # video clip
-    clip1 = VideoFileClip("../input_videos/project_video.mp4")
+    clip1 = VideoFileClip("../input_videos/project_video.mp4").subclip(0,10)
     white_clip = clip1.fl_image(process_image)
 
     # save the clip
@@ -150,7 +150,9 @@ params = {
     'minpoint_fract' : 0.25,
     'maxpoint_fract' : 0.80,
     'nwindows' : 9
-  }
+  },
+
+  'thumb_ratio': 0.25
 }
 
 if __name__ == "__main__":
