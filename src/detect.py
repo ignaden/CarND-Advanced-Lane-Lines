@@ -333,7 +333,7 @@ class Lines:
         
         # Draw the lane onto the warped blank image
         cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
-        
+
         # Warp the blank back to original image space using inverse perspective matrix (Minv)
         newwarp = cv2.warpPerspective(color_warp, Minv, (undist.shape[1], undist.shape[0]))
         
@@ -387,6 +387,16 @@ class Lines:
             right_fit_cr    = np.polyfit(self._leftLine.ally * ym_per_pix, self._leftLine.allx * xm_per_pix, 2)
             right_curverad  = ((1 + (2 * right_fit_cr[0] * self._leftLine.ally * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * right_fit_cr[0])
         
+        # add text (curvature and offset info) on the upper right of the blend
+        # mean_curvature_meter = np.mean([line_lt.curvature_meter, line_rt.curvature_meter])
+        
+        mean_curvature_meter = 100.0
+        offset_meter = 12.34
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(img_blend, 'Curvature radius: %.2f' % mean_curvature_meter, (860, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(img_blend, 'Offset from center: %.2f' % offset_meter, (860, 130), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+
         return img_blend
 
     def process_frame (self, img, overlay=False):
