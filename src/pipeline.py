@@ -100,7 +100,6 @@ def run_test_images(params):
     """ Run all of the test images """
 
     for idx, g in enumerate(glob.glob("../test_images/*.jpg")):
-        
         print ("processing [%s]" % g)
 
         l = Lines(idx, cameraCaleb, params, True, "test_output")
@@ -115,22 +114,55 @@ def run_test_images(params):
         plt.imshow(img)
         plt.savefig(outpath)
 #        cv2.imwrite(outpath, np.as_int(warped) * 255)
-    
 
-def run_video():
-    white_output = 'output_videos/challenge_video.mp4'
-    clip1 = VideoFileClip("input_videos/challenge_video.mp4").subclip(0,10)
+lines = None
+
+def process_image(img):
+    """ """
+    global lines
+    return lines.process_frame(img)
+
+def run_video(params):
+
+    # 
+    global lines
+    lines = Lines(0, cameraCaleb, params, False, "video")
+
+    # White how?
+    white_output = '../output_videos/project_video.mp4'
+
+    # video clip
+    clip1 = VideoFileClip("../input_videos/project_video.mp4")
     white_clip = clip1.fl_image(process_image)
+
+    # save the clip
+    white_clip.write_videofile(white_output, audio=False)
 
 params = {
   'color_trans' : {
     's_thresh' : (170, 255),
-    'sx_thresh' : (40, 100)
+    'sx_thresh' : (20, 100)
+  },
+
+  'fit' : {
+    'margin' : 50,
+    'minpix' : 20,
+    'minpoint_fract' : 0.25,
+    'maxpoint_fract' : 0.80,
+    'nwindows' : 9
   }
 }
 
 if __name__ == "__main__":
+
+    # run test images
+    #try:
+    #    run_test_images(params)
+    #except Exception as e:
+    #    print ("Failed to run test images [%s]" % str(e))
+
+    # do the video processing
     try:
-        run_test_images(params)
+      run_video(params)
     except Exception as e:
-        print ("Failed to run test images [%s]" % str(e))
+      print ('Failed to run video translation [%s]' % str(e))
