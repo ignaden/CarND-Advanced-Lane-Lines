@@ -132,21 +132,26 @@ def run_video(params):
     white_output = '../output_videos/project_video.mp4'
 
     # video clip
-    clip1 = VideoFileClip("../input_videos/project_video.mp4").subclip(0,10)
+    clip1 = VideoFileClip("../input_videos/project_video.mp4")
+
+    clip1.save_frame("frame.jpeg", t=41)
+    return 
+
     white_clip = clip1.fl_image(process_image)
 
     # save the clip
     white_clip.write_videofile(white_output, audio=False)
 
+
 params = {
   'color_trans' : {
-    's_thresh' : (170, 255),
+    's_thresh' : (100, 255),
     'sx_thresh' : (20, 100)
   },
 
   'fit' : {
     'margin' : 50,
-    'minpix' : 20,
+    'minpix' : 15,
     'minpoint_fract' : 0.25,
     'maxpoint_fract' : 0.80,
     'nwindows' : 9

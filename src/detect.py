@@ -87,7 +87,7 @@ class Lines:
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
 
-        margin = 100
+        margin = self._params['fit']['margin']
 
         if fit_left:
             left_fit = self._leftLine.current_fit
@@ -184,9 +184,9 @@ class Lines:
             
             # If you found > minpix pixels, recenter next window on their mean position
             if len(good_left_inds) > minpix:
-                leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
+                leftx_current = np.int( np.mean (nonzerox[good_left_inds]))
             if len(good_right_inds) > minpix:        
-                rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
+                rightx_current = np.int( np.mean (nonzerox[good_right_inds]))
 
         # Fit a second order polynomial to each
         if fit_left:
@@ -208,23 +208,24 @@ class Lines:
             right_fit = np.polyfit(righty, rightx, 2)
             self._rightLine.updateFitDetails(right_fit, rightx, righty)
 
-    def fit_lines (self, warped):
+    def fit_lines (self, warped, alwaysNew=True):
         """ Attempt to use existing fits, restart if not. """
 
-        # First, if there're already fit, then 
-        if self._leftLine.fitExists() or self._rightLine.fitExists():
-            print ('Atleast one line already exists - updating it')
-            updateLeft = self._leftLine.fitExists()
-            updateRight = self._rightLine.fitExists()
-            self.update_line_fits(warped, updateLeft, updateRight)
-        
-        if not self._leftLine.fitExists() or not self._rightLine.fitExists():
-            print ('Need to fit a new line!')
-            updateLeft = not self._leftLine.fitExists()
-            updateRight = not self._rightLine.fitExists()
-            self.fit_new_lines(warped, updateLeft, updateRight)
-        
-        # Draw the lines here!
+        if not alwaysNew:
+          # First, if there're already fit, then 
+          if self._leftLine.fitExists() or self._rightLine.fitExists():
+              print ('Atleast one line already exists - updating it')
+              updateLeft = self._leftLine.fitExists()
+              updateRight = self._rightLine.fitExists()
+              self.update_line_fits(warped, updateLeft, updateRight)
+          
+          if not self._leftLine.fitExists() or not self._rightLine.fitExists():
+              print ('Need to fit a new line!')
+              updateLeft = not self._leftLine.fitExists()
+              updateRight = not self._rightLine.fitExists()
+              self.fit_new_lines(warped, updateLeft, updateRight)
+        else:
+            self.fit_new_lines(warped, True, True)
 
         if not (self._leftLine.fitExists() and self._rightLine.fitExists()):
           # Get out here
