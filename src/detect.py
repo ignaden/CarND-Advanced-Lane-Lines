@@ -336,46 +336,28 @@ class Lines:
         #self._debug = True
         # Update the left line
         if self._leftLine.fit_exists() and not alwaysNew:
-          if self._debug:
-            print ('Old left line fit exists. using it')
           leftCandidate = LineFit.update_fit(self._leftLine.best_fit, warped, self._params, isLeft=True)
         else:
           # Try to fit a new one
-          if self._debug:
-            print ('Fitting a left new line')
           leftCandidate = LineFit.new_line_fit(warped, self._params, isLeft=True)
         
         if self._rightLine.fit_exists() and not alwaysNew:
-          if self._debug:
-            print ('Old right line fit exists. using it')
           rightCandidate = LineFit.update_fit(self._rightLine.best_fit, warped, self._params, isLeft=False)
         else:
           # Try to fit a new one
-          if self._debug:
-            print ('Fitting a right new line')
-
           rightCandidate = LineFit.new_line_fit(warped, self._params, isLeft=False)
 
         if LineFit.is_good_fit(leftCandidate, rightCandidate):
-          if self._debug:
-            print ('Good fit!!!')
           # use these to update the current ones
           self._leftLine.apply_new_fit(leftCandidate)
           self._rightLine.apply_new_fit(rightCandidate)
         else:
-          if self._debug:
-            print('bad Fit!')
           self._leftLine.use_last_good_fit()
           self._rightLine.use_last_good_fit()
 
         if not (self._leftLine.fit_exists() and self._rightLine.fit_exists()):
-          # Get out here
-          if self._debug:
-            print ('Hello')
           return None
 
-        #self._debug = False
-        
         # Create an image to draw on and an image to show the selection window
         warped      = warped.astype(np.uint8)
         out_img     = np.dstack((warped, warped, warped)) * 255
@@ -402,97 +384,8 @@ class Lines:
 
         return cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
-    # def fit_lines (self, warped, alwaysNew=True):
-    #     """ Attempt to use existing fits, restart if not. """
-    #     #self._debug = True
-    #     # Update the left line
-    #     if self._leftLine.fit_exists() and not alwaysNew:
-    #       if self._debug:
-    #         print ('Old left line fit exists. using it')
-    #       candidateFit = LineFit.update_fit(self._leftLine.best_fit, warped, self._params, isLeft=True)
-
-    #       # Candidate fit is good?
-    #       if self._leftLine.is_good_fit(candidateFit, self._rightLine):
-    #         if self._debug:
-    #           print ('Obtained a good new fit!')
-    #         self._leftLine.apply_new_fit(candidateFit)
-    #       else:
-    #         if self._debug:
-    #           print ('Could not obtain a good new fit!')
-    #         # We tried to update the existing fit and it wasn't good
-    #         if self._leftLine.good_history():
-    #           if self._debug: print ('Good history exists!')
-    #           # Take the last good one and use it again.
-    #           self._leftLine.use_last_good_fit()
-    #         else:
-    #           if self._debug:
-    #             print ('No good history exists!')
-    #           candidateFit = LineFit.new_line_fit(warped, self._params, isLeft=True)
-    #           # Well, we don't have good history, hence we need to continue
-    #     else:
-    #       # Try to fit a new one
-    #       candidateFit = LineFit.new_line_fit(warped, self._params, isLeft=True)
-    #       if self._leftLine.is_good_fit(candidateFit, self._rightLine):
-    #         self._leftLine.apply_new_fit(candidateFit)
-    #       else:
-    #         # we have a good fit now, continue
-    #         self._leftLine.error_mode(on=True)
-        
-    #     # Same thing for right line
-    #     if self._rightLine.fit_exists() and not alwaysNew:
-    #       candidateFit = LineFit.update_fit(self._rightLine.best_fit, warped, self._params, isLeft=False)
-          
-    #       if self._rightLine.is_good_fit(candidateFit, self._leftLine):
-    #         self._rightLine.apply_new_fit(candidateFit)
-    #       else:
-    #         if self._rightLine.good_history():
-    #           self._rightLine.use_last_good_fit()
-    #         else:
-    #           candidateFit = LineFit.new_line_fit(warped, self._params, isLeft=False)
-    #     else:
-    #       candidateFit = LineFit.new_line_fit(warped, self._params, isLeft=False)
-    #       if self._rightLine.is_good_fit(candidateFit, self._leftLine):
-    #         self._rightLine.apply_new_fit(candidateFit)
-    #       else:
-    #         self._rightLine.error_mode(on=True)
-    #     ## At this point the data should've been updated!
-
-
-    #     self._debug = False
-    #     if not (self._leftLine.fit_exists() and self._rightLine.fit_exists()):
-    #       # Get out here
-    #       return None
-        
-    #     # Create an image to draw on and an image to show the selection window
-    #     warped      = warped.astype(np.uint8)
-    #     out_img     = np.dstack((warped, warped, warped)) * 255
-    #     window_img  = np.zeros_like(out_img)
-
-    #     # Color in left and right line pixels
-    #     out_img[self._leftLine.ally,  self._leftLine.allx]  = [255, 0, 0]
-    #     out_img[self._rightLine.ally, self._rightLine.allx] = [0, 0, 255]
-
-    #     # Generate a polygon to illustrate the search window area
-    #     # And recast the x and y points into usable format for cv2.fillPoly()
-    #     left_line_window1   = np.array([np.transpose(np.vstack([self._leftLine.allx - self._params['fit']['margin'], self._leftLine.ally]))])
-    #     left_line_window2   = np.array([np.flipud(np.transpose(np.vstack([self._leftLine.allx + self._params['fit']['margin'], self._leftLine.ally])))])
-    #     left_line_pts       = np.hstack((left_line_window1, left_line_window2))
-        
-    #     # Draw out the right side!
-    #     right_line_window1  = np.array([np.transpose(np.vstack([self._rightLine.allx - self._params['fit']['margin'], self._rightLine.ally]))])
-    #     right_line_window2  = np.array([np.flipud(np.transpose(np.vstack([self._rightLine.allx + self._params['fit']['margin'], self._rightLine.ally])))])
-    #     right_line_pts      = np.hstack((right_line_window1, right_line_window2))
-
-    #     # Draw the lane onto the warped blank image
-    #     cv2.fillPoly(window_img, np.int_([left_line_pts]),  (0, 255, 0))
-    #     cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
-
-    #     return cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
-
     @staticmethod
     def abs_sobel_thresh(img, orient='x', thresh_min=0, thresh_max=255):
-        # Convert to grayscale
-        #gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         # Apply x or y gradient with the OpenCV Sobel() function
         # and take the absolute value
         if orient == 'x':
@@ -618,8 +511,9 @@ class Lines:
           cv2.putText(img_blend, 'Curvature right: %10.1f' % self._rightLine.radius_of_curvature, (400, 90), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
           cv2.putText(img_blend, 'Curvature avg  : %10.1f' % mean_curvature_meter, (400, 120), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
 
-          cv2.putText(img_blend, 'Offset from center: %.2f' % offset_meter, (860, 130), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+          cv2.putText(img_blend, 'Offset from center: %.2f' % offset_meter, (860, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
         else:
+          
           font = cv2.FONT_HERSHEY_SIMPLEX
           cv2.putText(img_blend, 'Curvature not available', (860, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
 
@@ -633,7 +527,6 @@ class Lines:
         # Step 1: Undistort the image
         try:
           undist = self.undistort_img(img, self._cameraCaleb)
-          if self._debug: print ('Undistorted.')
         except Exception as e:
           raise Exception ('Failed to undistort [%s]' % str(e))
 
@@ -716,10 +609,6 @@ class Lines:
         
         dst = np.float32([[width * 0.35, 0], [width * 0.65, 0], 
                           [width * 0.65, height], [ width * 0.35, height]])
-
-        #src = np.float32( [[200, 720], [1100, 720], [595, 450], [685, 450]])
-
-        #dst = np.float32( [[300, 720], [980, 720], [300, 0], [980, 0]])
 
         # Given src and dst points, calculate the perspective transform matrix
         M = cv2.getPerspectiveTransform(src, dst)
