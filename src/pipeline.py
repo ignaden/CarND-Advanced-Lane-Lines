@@ -104,7 +104,7 @@ def run_test_images(params):
 
         l = Lines(idx, cameraCaleb, params, True, "test_output")
         #img = l.process_frame(cv2.imread(g))
-        img = l.process_frame (mpimg.imread(g))
+        img = l.process_frame (mpimg.imread(g), True)
 
         outpath = "../test_images_output/test_%d.jpg" % idx
         outpath_hist = "../test_images_output/test_hist%d.jpg" % idx
@@ -132,10 +132,10 @@ def run_video(params):
     white_output = '../output_videos/project_video.mp4'
 
     # video clip
-    clip1 = VideoFileClip("../input_videos/project_video.mp4")
+    clip1 = VideoFileClip("../input_videos/project_video.mp4") #.subclip(0,40)
 
-    clip1.save_frame("frame.jpeg", t=41)
-    return 
+    #clip1.save_frame("frame.jpg", t=12)
+    #return
 
     white_clip = clip1.fl_image(process_image)
 
@@ -162,14 +162,17 @@ params = {
 
 if __name__ == "__main__":
 
-    # run test images
-    #try:
-    #    run_test_images(params)
-    #except Exception as e:
-    #    print ("Failed to run test images [%s]" % str(e))
+  # run test images
+  #try:
+  #  run_test_images(params)
+  #except Exception as e:
+  #  print ("Failed to run test images [%s]" % str(e))
+    
+  #sys.exit(0)
+  #import sys
 
-    # do the video processing
-    try:
-      run_video(params)
-    except Exception as e:
+  # do the video processing
+  try:
+    run_video(params)
+  except Exception as e:
       print ('Failed to run video translation [%s]' % str(e))
