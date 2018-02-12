@@ -194,23 +194,6 @@ class LineFit:
         dist_bot = right_fitx_bottom - left_fitx_bottom
 
         return (np.absolute(dist_top - dist_bot) / dist_bot) < max_dist and (np.absolute(dist_mid - dist_bot) / dist_bot) < max_dist
-
-        print ('curv: %.2f, %.2f' % (leftLine.radius_of_curvature, rightLine.radius_of_curvature))
-        print ('slope: %.2f, %.2f' % (leftLine.slope, rightLine.slope))
-
-        print ('left', leftLine.line_fit)
-        print ('right', rightLine.line_fit)
-
-        #return True
-        if not LineFit.diff_small(leftLine.radius_of_curvature, rightLine.radius_of_curvature, 0.20):
-          print ('New curv fit: %.2f; Old fit: %.2f' % (new_fit.radius_of_curvature, other_line.radius_of_curvature))
-          return False
-
-        #if not LineFit.diff_small(leftLine.slope, rightLine.slope, 0.33):
-          #print ('New slope fit: %.2f; Old fit: %.2f' % (new_fit.radius_of_curvature, other_line.radius_of_curvature))
-        #  return False
-
-        return True
     
 # Define a class to receive the characteristics of each line detection
 class Line():
@@ -495,23 +478,16 @@ class Lines:
         img_blend[3 * off_y + 2 * thumb_h : 3 * (off_y + thumb_h), off_x : off_x + thumb_w, :]  = thumb_warped
         
         if not (self._leftLine.radius_of_curvature is None or self._rightLine.radius_of_curvature is None):
-          mean_curvature_meter = (self._leftLine.radius_of_curvature + self._rightLine.radius_of_curvature) / 2.0
+          curv = (self._leftLine.radius_of_curvature + self._rightLine.radius_of_curvature) / 2.0
 
           left_bottom_x = self._leftLine.offset
           right_bottom_x = self._rightLine.offset
           offset = (img_greenzone.shape[1] / 2 * LineFit.xm_per_pix) - (left_bottom_x + right_bottom_x)
 
-
-          # The net effect should be the overall offset from the center
-          offset_meter = self._leftLine.offset + self._rightLine.offset
-
           font = cv2.FONT_HERSHEY_SIMPLEX
           # Write out the curvatures - left, right and avg
-          cv2.putText(img_blend, 'Curvature left : %10.1f' % self._leftLine.radius_of_curvature, (400, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
-          cv2.putText(img_blend, 'Curvature right: %10.1f' % self._rightLine.radius_of_curvature, (400, 90), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
-          cv2.putText(img_blend, 'Curvature avg  : %10.1f' % mean_curvature_meter, (400, 120), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
-
-          cv2.putText(img_blend, 'Offset from center: %.2f' % offset_meter, (860, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+          cv2.putText(img_blend, 'Curvature : %10.0fm' % curv, (400, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+          cv2.putText(img_blend, 'Offset: %.2fm' % offset, (860, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
         else:
           
           font = cv2.FONT_HERSHEY_SIMPLEX

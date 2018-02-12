@@ -18,17 +18,14 @@ def run_test_images(params):
         print ("processing [%s]" % g)
 
         l = Lines(idx, cameraCaleb, params, True, "test_output")
-        #img = l.process_frame(cv2.imread(g))
         img = l.process_frame (mpimg.imread(g), True)
 
         outpath = "../test_images_output/test_%d.jpg" % idx
         outpath_hist = "../test_images_output/test_hist%d.jpg" % idx
 
-        # Save th
         plt.clf()
         plt.imshow(img)
         plt.savefig(outpath)
-#        cv2.imwrite(outpath, np.as_int(warped) * 255)
 
 lines = None
 
