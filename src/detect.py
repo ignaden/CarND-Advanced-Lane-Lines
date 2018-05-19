@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 
 from linefit import LineFit
 from line import Line
+from process_img import PreProcessor
+
 
 class Lines:
     """ Contains information about both of the lines """
@@ -15,11 +17,14 @@ class Lines:
         """ """
         self._currframe = 0
 
+        self._frameProcessor = PreProcessor(cameraCaleb, transParams)
+
         self._debug = debug             # Are we in debug mode?
         self._runId = runId             # Run ID of all the current
         self._params = transParams      # Color transform and fitting parameters
         self._output_dir = output_dir   # Output directory for debug images
-        self._cameraCaleb = cameraCaleb # Calibration parameters for the camera
+        #self._cameraCaleb = cameraCaleb # Calibration parameters for the camera
+        
         self._leftLine, self._rightLine = Line(Line.LEFT), Line(Line.RIGHT)
         self._last_s_binary = None
 
@@ -128,7 +133,7 @@ class Lines:
         
         leftLaneFit = self._leftLine.get_smooth_fit()
         rightLaneFit = self._rightLine.get_smooth_fit()
-        
+
         # Get the x,y of the fitted lines
         ploty = np.linspace(0, undist.shape[0]-1, undist.shape[0])
         left_fitx = leftLaneFit[0]*ploty**2 + leftLaneFit[1]*ploty + leftLaneFit[2]
@@ -156,8 +161,11 @@ class Lines:
         return path.join(self._output_dir, "%d_%s.jpg" % (self._runId, img_type))
 
     def overlay_data (self, img_greenzone, gray_bin, warped, lines):
+        """ 'overlay_data' here as well... """
+
         # Now draw out the current curvature, center of the lane, etc.
         height, width  = img_greenzone.shape[0], img_greenzone.shape[1]
+
         # Create the thumbmail images
         thumb_h, thumb_w = int(height * self._params['thumb_ratio']), int(width * self._params['thumb_ratio'])
         thumb_size = (thumb_w, thumb_h)
@@ -171,8 +179,9 @@ class Lines:
           thumb_lines = cv2.resize(lines, dsize = thumb_size)
 
         warped = np.dstack((warped, warped, warped)) * 255
-        thumb_warped = cv2.resize(warped,    dsize = thumb_size)
+        thumb_warped = cv2.resize(warped, dsize = thumb_size)
 
+        # 
         off_x, off_y = 20, 45
 
         # Add a semi-transparent rectangle to highlight thumbnails on the left
@@ -197,6 +206,7 @@ class Lines:
           # Write out the curvatures - left, right and avg
           cv2.putText(img_blend, 'Curvature : %10.0fm' % curv, (400, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
           cv2.putText(img_blend, 'Offset: %.2fm' % offset, (860, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+
         else:
           
           font = cv2.FONT_HERSHEY_SIMPLEX
@@ -205,30 +215,48 @@ class Lines:
         return img_blend
 
     def process_frame (self, img, overlay=False):
+        """ Process a single frame:
+          1. Undistort the image (by applying camera calibrated parameters)
+          2. Color and gradient calculations
+          3. Perspective transformation
+          4. Update lane information
+          5. Overlay the resulting `green zone'
+        
+        """
 
         self._currframe += 1
         if self._debug: print ('Processing frame %.1d' % self._currframe)
 
+        #############################################################################
         # Step 1: Undistort the image
+        #############################################################################
         try:
-          undist = self.undistort_img(img, self._cameraCaleb)
+          #undist = self.undistort_img(img, self._cameraCaleb)
+          undist = self._frameProcessor.undistort_img(img)
         except Exception as e:
           raise Exception ('Failed to undistort [%s]' % str(e))
 
         if self._debug:
+          #
           # Print out the image for this run
+          #
           outpath = self.make_out_path("undistorted")
           print ('Writing out undistorted file to ' + outpath)
           plt.clf()
           plt.imshow(undist)
           plt.savefig(outpath)
-
+        
+        #############################################################################
         # Step 2: Color and gradient calculations
+        #############################################################################
         try:
-          gray_bin = self.translate_color (undist)
+          #gray_bin = self.translate_color (undist)
+          gray_bin = self._frameProcessor.translate_color(undist)
+
           if self._debug: print ('Color and gradient calculations')
         except Exception as e:
           raise Exception ('Failed to run color pipeline [%s]' % str(e))
+        
         if self._debug:
           outpath = self.make_out_path("gray")
           print ('Writing out gray file to ' + outpath)
@@ -236,9 +264,12 @@ class Lines:
           plt.imshow(gray_bin)
           plt.savefig(outpath)
 
+        #############################################################################
         # Step 3: Transformation
+        #############################################################################
         try:
-          warped, M, Minv = self.transform(gray_bin)
+          #warped, M, Minv = self.transform(gray_bin)
+          warped, M, Minv = self._frameProcessor.transform(gray_bin)
           if self._debug: print ('Transformation')
         except Exception as e:
           raise Exception ('Failed to transform [%s]' % str(e))
@@ -249,14 +280,18 @@ class Lines:
           plt.imshow(warped)
           plt.savefig(outpath)
 
+        #############################################################################
         # Step 4: Update lane information
+        #############################################################################
         try:
           lines = self.fit_lines (warped, alwaysNew=False)
           if self._debug: print ('Updating fits')
         except Exception as e:
           raise Exception ('Failed to update line fits [%s]' % str(e))
         
+        #############################################################################
         # Step 5: Overlay the green zone
+        #############################################################################
         try:
           img_greenzone = self.overlay_green_zone (undist, warped, Minv)
           if self._debug: print ('Greenzone')
@@ -272,33 +307,7 @@ class Lines:
 
         if overlay:
             img_greenzone = self.overlay_data (img_greenzone, gray_bin, warped, lines)
+
+        # Now, this image should contain all of the information...
         return img_greenzone
-    
-    @staticmethod
-    def undistort_img(img, cameraCaleb):
-        return cv2.undistort(img, cameraCaleb['mtx'], cameraCaleb['dist'], None, cameraCaleb['mtx'])
-
-    # Define a function that takes an image, number of x and y points, 
-    # camera matrix and distortion coefficients
-    @staticmethod
-    def transform(img):
-
-        # Get the dimensions
-        width, height = img.shape[1], img.shape[0]
-        img_size = (width, height)
-
-        # define the trapezoid
-
-        src = np.float32([[605, 445], [685, 445],
-                          [1063, 676], [260, 676]])
-        
-        dst = np.float32([[width * 0.35, 0], [width * 0.65, 0], 
-                          [width * 0.65, height], [ width * 0.35, height]])
-
-        # Given src and dst points, calculate the perspective transform matrix
-        M = cv2.getPerspectiveTransform(src, dst)
-        Minv = cv2.getPerspectiveTransform(dst, src)
-
-        # Warp the image using OpenCV warpPerspective()
-        return cv2.warpPerspective(img, M, (int(width), int(height)), flags=cv2.INTER_LINEAR), M, Minv
     

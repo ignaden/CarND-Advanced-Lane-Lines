@@ -75,13 +75,13 @@ params = {
 if __name__ == "__main__":
 
   # run test images
-  #try:
-  #  run_test_images(params)
-  #except Exception as e:
-  #  print ("Failed to run test images [%s]" % str(e))
+#  try:
+#    run_test_images(params)
+#  except Exception as e:
+#    print ("Failed to run test images [%s]" % str(e))
     
-  #sys.exit(0)
-  #import sys
+#  import sys
+#  sys.exit(0)
 
   # do the video processing
   try:
