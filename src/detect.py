@@ -181,7 +181,6 @@ class Lines:
         warped = np.dstack((warped, warped, warped)) * 255
         thumb_warped = cv2.resize(warped, dsize = thumb_size)
 
-        # 
         off_x, off_y = 20, 45
 
         # Add a semi-transparent rectangle to highlight thumbnails on the left
@@ -190,11 +189,15 @@ class Lines:
 
         # Stitch thumbnails here
         img_blend[off_y : off_y + thumb_h, off_x : off_x + thumb_w, :] = thumb_gray_bin
-  
+
         if not (lines is None):
           img_blend[2 * off_y + thumb_h : 2 * (off_y + thumb_h), off_x : off_x + thumb_w, :] = thumb_lines
-        img_blend[3 * off_y + 2 * thumb_h : 3 * (off_y + thumb_h), off_x : off_x + thumb_w, :] = thumb_warped
+          img_blend[3 * off_y + 2 * thumb_h : 3 * (off_y + thumb_h), off_x : off_x + thumb_w, :] = thumb_warped
         
+        # 
+        # If we have both of the lines, then we should be able to calculate the curvature
+        # and display it on the image!
+        # 
         if not (self._leftLine.radius_of_curvature is None or self._rightLine.radius_of_curvature is None):
           curv = (self._leftLine.radius_of_curvature + self._rightLine.radius_of_curvature) / 2.0
 

@@ -6,11 +6,11 @@ import pickle
 import copy as cp
 import glob
 
-def save_params(cameraCaleb):
+def save_params(cameraCaleb, filename="cameraCaleb123.pickle"):
     """ Save the calibrated camera parameters. """
     
     print ("Saving results to `cameraCaleb.pickle`")
-    with open('../cameraCaleb.pickle', 'wb') as f:
+    with open('../' + filename, 'wb') as f:
         pickle.dump(cameraCaleb, f)
     
 def load_params ():
@@ -30,6 +30,8 @@ def calibrate_camera(debug=True):
 
     objp = np.zeros((nx * ny, 3), np.float32)
     objp[:,:2] = np.mgrid[0:nx, 0:ny].T.reshape(-1,2)
+
+    print (objp)
 
     # Arrays to store object points and image points from all the images.
     objpoints = [] # 3d points in real world space

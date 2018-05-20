@@ -1,4 +1,3 @@
-
 import cv2
 import glob
 import numpy as np
@@ -73,18 +72,19 @@ params = {
 }
 
 if __name__ == "__main__":
+  testRun = True
 
-  # run test images
-#  try:
-#    run_test_images(params)
-#  except Exception as e:
-#    print ("Failed to run test images [%s]" % str(e))
-    
-#  import sys
-#  sys.exit(0)
+  # Run test images
+  if testRun:
+    try:
+      run_test_images(params)
+    except Exception as e:
+      print ("Failed to run test images [%s]" % str(e))
 
-  # do the video processing
-  try:
-    run_video(params)
-  except Exception as e:
-      print ('Failed to run video translation [%s]' % str(e))
+  else:
+
+    # Do a run of video processing
+    try:
+      run_video(params)
+    except Exception as e:
+        print ('Failed to run video translation [%s]' % str(e))
