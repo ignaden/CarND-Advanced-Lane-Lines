@@ -3,7 +3,9 @@ import numpy as np
 import pickle
 from os import path
 from camera import load_params
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure 
 
 from linefit import LineFit
 from line import Line
@@ -12,69 +14,105 @@ class Lines:
     """ Contains information about both of the lines """
 
     def __init__ (self, runId, cameraCaleb, transParams, debug=False, output_dir="."):
-        """ """
-        self._currframe = 0
+      """ """
+      self._currframe = 0
 
-        self._debug = debug             # Are we in debug mode?
-        self._runId = runId             # Run ID of all the current
-        self._params = transParams      # Color transform and fitting parameters
-        self._output_dir = output_dir   # Output directory for debug images
-        self._cameraCaleb = cameraCaleb # Calibration parameters for the camera
-        self._leftLine, self._rightLine = Line(Line.LEFT), Line(Line.RIGHT)
-        self._last_s_binary = None
+      self._debug = debug             # Are we in debug mode?
+      self._runId = runId             # Run ID of all the current
+      self._params = transParams      # Color transform and fitting parameters
+      self._output_dir = output_dir   # Output directory for debug images
+      self._cameraCaleb = cameraCaleb # Calibration parameters for the camera
+      self._leftLine, self._rightLine = Line(Line.LEFT), Line(Line.RIGHT)
+      self._last_s_binary = None
 
     def fit_lines (self, warped, alwaysNew=True):
-        """ Attempt to use existing fits, restart if not. """
-        #self._debug = True
-        # Update the left line
-        if self._leftLine.fit_exists() and not alwaysNew:
-          leftCandidate = LineFit.update_fit(self._leftLine.best_fit, warped, self._params, isLeft=True)
-        else:
-          # Try to fit a new one
-          leftCandidate = LineFit.new_line_fit(warped, self._params, isLeft=True)
+      """ Attempt to use existing fits, restart if not. """
         
-        if self._rightLine.fit_exists() and not alwaysNew:
-          rightCandidate = LineFit.update_fit(self._rightLine.best_fit, warped, self._params, isLeft=False)
-        else:
-          # Try to fit a new one
-          rightCandidate = LineFit.new_line_fit(warped, self._params, isLeft=False)
-
-        if LineFit.is_good_fit(leftCandidate, rightCandidate):
-          # use these to update the current ones
-          self._leftLine.apply_new_fit(leftCandidate)
-          self._rightLine.apply_new_fit(rightCandidate)
-        else:
-          self._leftLine.use_last_good_fit()
-          self._rightLine.use_last_good_fit()
-
-        if not (self._leftLine.fit_exists() and self._rightLine.fit_exists()):
-          return None
-
-        # Create an image to draw on and an image to show the selection window
-        warped      = warped.astype(np.uint8)
-        out_img     = np.dstack((warped, warped, warped)) * 255
-        window_img  = np.zeros_like(out_img)
-
-        # Color in left and right line pixels
-        out_img[self._leftLine.ally,  self._leftLine.allx]  = [255, 0, 0]
-        out_img[self._rightLine.ally, self._rightLine.allx] = [0, 0, 255]
-
-        # Generate a polygon to illustrate the search window area
-        # And recast the x and y points into usable format for cv2.fillPoly()
-        left_line_window1   = np.array([np.transpose(np.vstack([self._leftLine.allx - self._params['fit']['margin'], self._leftLine.ally]))])
-        left_line_window2   = np.array([np.flipud(np.transpose(np.vstack([self._leftLine.allx + self._params['fit']['margin'], self._leftLine.ally])))])
-        left_line_pts       = np.hstack((left_line_window1, left_line_window2))
+      # Update the left line
+      if self._leftLine.fit_exists() and not alwaysNew:
+        if self._debug:
+          print("Will look to update existing fit for left line!")
+        leftCandidate = LineFit.update_fit(self._leftLine.best_fit, warped, self._params, isLeft=True)
+      else:
+        # Try to fit a new one
+        if self._debug:
+          print("Will look to create a new fit for left line!")
+        leftCandidate = LineFit.new_line_fit(warped, self._params, isLeft=True)
         
-        # Draw out the right side!
-        right_line_window1  = np.array([np.transpose(np.vstack([self._rightLine.allx - self._params['fit']['margin'], self._rightLine.ally]))])
-        right_line_window2  = np.array([np.flipud(np.transpose(np.vstack([self._rightLine.allx + self._params['fit']['margin'], self._rightLine.ally])))])
-        right_line_pts      = np.hstack((right_line_window1, right_line_window2))
+      if self._rightLine.fit_exists() and not alwaysNew:
+        if self._debug:
+          print("Will look to update existing fit for left line!")
+        rightCandidate = LineFit.update_fit(self._rightLine.best_fit, warped, self._params, isLeft=False)
+      else:
+        # Try to fit a new one
+        if self._debug:
+          print ("Will look to create a new fit altogether!")
+        rightCandidate = LineFit.new_line_fit(warped, self._params, isLeft=False)
 
-        # Draw the lane onto the warped blank image
-        cv2.fillPoly(window_img, np.int_([left_line_pts]),  (0, 255, 0))
-        cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
+      # Now that we should have some fits, let's see whether we can apply them!
+      # TODO: maybe these should be done one-by-one?
+      if LineFit.is_good_fit(leftCandidate, rightCandidate):
+        # use these to update the current ones
+        if self._debug:
+          print ("Will apply the new fits!")
+        self._leftLine.apply_new_fit(leftCandidate)
+        self._rightLine.apply_new_fit(rightCandidate)
 
-        return cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
+      else:
+        if self._debug:
+          print ("Will use last good fit :(")
+        self._leftLine.use_last_good_fit()
+        self._rightLine.use_last_good_fit()
+
+      if not (self._leftLine.fit_exists() and self._rightLine.fit_exists()):
+        if self._debug:
+          print ("It looks like we dont have anything to go on with")
+        return None
+
+      ## At this point, we should have both of the lines - let's try to draw them here.
+
+      # Create an image to draw on and an image to show the selection window
+      warped      = warped.astype(np.uint8)
+      out_img     = np.dstack((warped, warped, warped)) * 255
+      window_img  = np.zeros_like(out_img)
+
+      # Color in left and right line pixels
+      out_img[self._leftLine.ally,  self._leftLine.allx]  = [255, 0, 0]
+      out_img[self._rightLine.ally, self._rightLine.allx] = [0, 0, 255]
+
+      # Generate a polygon to illustrate the search window area
+      # And recast the x and y points into usable format for cv2.fillPoly()
+
+      left_fit = self._leftLine.best_fit
+      right_fit = self._rightLine.best_fit
+
+      ploty = np.linspace(0, warped.shape[0]-1, warped.shape[0] )
+
+      left_fitx   = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
+      right_fitx  = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+
+      left_line_window1   = np.array([np.transpose(np.vstack([left_fitx - self._params['fit']['margin'], ploty]))])
+      left_line_window2   = np.array([np.flipud(np.transpose(np.vstack([left_fitx + self._params['fit']['margin'], ploty])))])
+      left_line_pts       = np.hstack((left_line_window1, left_line_window2))
+        
+      # Draw out the right side!
+      right_line_window1  = np.array([np.transpose(np.vstack([right_fitx - self._params['fit']['margin'], ploty]))])
+      right_line_window2  = np.array([np.flipud(np.transpose(np.vstack([right_fitx + self._params['fit']['margin'], ploty])))])
+      right_line_pts      = np.hstack((right_line_window1, right_line_window2))
+
+      # Draw the lane onto the warped blank image
+      cv2.fillPoly(window_img, np.int_([left_line_pts]),  (0, 255, 0))
+      cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
+
+      result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
+
+      # Now draw out the fitted curves!
+      points = np.vstack((left_fitx, ploty)).astype(np.int32).T
+      result = cv2.polylines(result, [points], False, (255,255,0), 10)
+      points = np.vstack((right_fitx, ploty)).astype(np.int32).T
+      result = cv2.polylines(result, [points], False, (255,255,0), 10)
+
+      return result
 
     @staticmethod
     def abs_sobel_thresh(img, orient='x', thresh_min=0, thresh_max=255):
@@ -184,6 +222,7 @@ class Lines:
   
         if not (lines is None):
           img_blend[2 * off_y + thumb_h : 2 * (off_y + thumb_h), off_x : off_x + thumb_w, :] = thumb_lines
+
         img_blend[3 * off_y + 2 * thumb_h : 3 * (off_y + thumb_h), off_x : off_x + thumb_w, :] = thumb_warped
         
         if not (self._leftLine.radius_of_curvature is None or self._rightLine.radius_of_curvature is None):
@@ -220,7 +259,14 @@ class Lines:
           outpath = self.make_out_path("undistorted")
           print ('Writing out undistorted file to ' + outpath)
           plt.clf()
-          plt.imshow(undist)
+
+          f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+          f.tight_layout()
+          ax1.imshow(img)
+          ax1.set_title('Original Image', fontsize=50)
+          ax2.imshow(undist)
+          ax2.set_title('Undistorted', fontsize=50)
+          plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
           plt.savefig(outpath)
 
         # Step 2: Color and gradient calculations
@@ -233,7 +279,13 @@ class Lines:
           outpath = self.make_out_path("gray")
           print ('Writing out gray file to ' + outpath)
           plt.clf()
-          plt.imshow(gray_bin)
+          f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+          f.tight_layout()
+          ax1.imshow(img)
+          ax1.set_title('Undistorted Original Image', fontsize=50)
+          ax2.imshow(gray_bin, cmap='gray')
+          ax2.set_title('After color conversion, gradient threshold', fontsize=50)
+          plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
           plt.savefig(outpath)
 
         # Step 3: Transformation
@@ -246,9 +298,15 @@ class Lines:
           outpath = self.make_out_path("warped")
           print ('Writing out warped file to ' + outpath)
           plt.clf()
-          plt.imshow(warped)
+          f, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 9))
+          f.tight_layout()
+          ax1.imshow(gray_bin, cmap='gray')
+          ax1.set_title('Thresholded grayscale', fontsize=50)
+          ax2.imshow(warped, cmap='gray')
+          ax2.set_title('Warped', fontsize=50)
+          plt.subplots_adjust(left=0., right=1, top=0.9, bottom=0.)
           plt.savefig(outpath)
-
+        
         # Step 4: Update lane information
         try:
           lines = self.fit_lines (warped, alwaysNew=False)
@@ -256,22 +314,37 @@ class Lines:
         except Exception as e:
           raise Exception ('Failed to update line fits [%s]' % str(e))
         
+        if self._debug and lines is not None:
+          outpath = self.make_out_path("lines")
+          plt.clf()
+          plt.imshow(lines)
+          plt.savefig(outpath)
+
         # Step 5: Overlay the green zone
         try:
           img_greenzone = self.overlay_green_zone (undist, warped, Minv)
-          if self._debug: print ('Greenzone')
+
         except Exception as e:
           raise Exception ('Failed to overlay green zone [%s]' % str(e))
         
-        if self._debug:
+        if self._debug and lines is not None:
           outpath = self.make_out_path("greenzone")
+
           print ('Writing out greenzone file to ' + outpath)
           plt.clf()
           plt.imshow(img_greenzone)
           plt.savefig(outpath)
 
-        if overlay:
-            img_greenzone = self.overlay_data (img_greenzone, gray_bin, warped, lines)
+          # Let's plot before and after!
+
+        if overlay and lines is not None:
+          img_greenzone = self.overlay_data (img_greenzone, gray_bin, warped, lines)
+
+          outpath = self.make_out_path("greenzone_with_data")
+          plt.clf()
+          plt.imshow(img_greenzone)
+          plt.savefig(outpath)    
+
         return img_greenzone
     
     @staticmethod

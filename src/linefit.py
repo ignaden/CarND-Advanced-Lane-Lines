@@ -11,7 +11,7 @@ class LineFit:
     ym_per_pix = 30 / 720   # meters per pixel in y dimension
     xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
 
-    def __init__ (self, fit, inds, allx, ally):
+    def __init__ (self, fit, inds, allx, ally, debug=True):
         """ """
 
         self.line_fit = fit
@@ -19,13 +19,25 @@ class LineFit:
         self.allx = allx
         self.ally = ally
         
-        y_bottom = 0
+        # Actually, y_bottom would be the maximum value (720?)
+        y_bottom = 720
 
         fit_cr = np.polyfit(self.ally * self.ym_per_pix, self.allx * self.xm_per_pix, 2)
-        self.radius_of_curvature = ((1 + (2 * fit_cr[0] * y_bottom * self.ym_per_pix + fit_cr[1]) ** 2) ** 1.5) / np.absolute(2 * fit_cr[0])
+        self.radius_of_curvature = ((1.0 + (2.0 * fit_cr[0] * y_bottom * self.ym_per_pix + fit_cr[1]) ** 2.0) ** 1.5) / np.absolute(2.0 * fit_cr[0])
         self.slope = 2 * fit_cr[0] * y_bottom * self.ym_per_pix + fit_cr[1]
 
         self.offset = (fit[0] * (y_bottom ** 2) + fit[1] * y_bottom + fit[2]) / 2 * self.xm_per_pix
+
+        if debug:
+          #
+          # Let's print out all of the numbers here
+          # 
+          print ("")
+          print ("ym_per_pix = %.2f; xm_per_pix = %.2f" % (self.ym_per_pix, self.xm_per_pix))
+          print ("A = %.4f" % fit_cr[0])
+          print ("B = %.4f" % fit_cr[1])
+          print ("C = %.3f" % fit_cr[2])
+          print ("")
 
     @staticmethod
     def new_line_fit (binary_warped, params, isLeft=True):
@@ -129,7 +141,8 @@ class LineFit:
     
     @staticmethod
     def update_fit (old_fit, binary_warped, params, isLeft=True):
-
+        """ """
+        
         binary_warped = binary_warped.astype(np.uint8)
 
         # Assume you now have a new warped binary image 
