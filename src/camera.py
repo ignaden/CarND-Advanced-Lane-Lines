@@ -44,10 +44,13 @@ def calibrate_camera(debug=True):
   #images = [ 'camera_cal/calibration2.jpg' ]
 
   # Step through the list and search for chessboard corners
-  foundCount = 0
+  foundCount, img_size = 0, None
+
   for idx, fname in enumerate(images):
     print ("idx = %1d" % idx)
+  
     img = cv2.imread(fname)
+    img_size = (img.shape[1], img.shape[0])
     gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     ret, corners = cv2.findChessboardCorners(gray_img, (nx, ny), None)
