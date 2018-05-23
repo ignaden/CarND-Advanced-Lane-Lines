@@ -11,7 +11,7 @@ class LineFit:
     ym_per_pix = 30 / 720   # meters per pixel in y dimension
     xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
 
-    def __init__ (self, fit, inds, allx, ally, debug=True):
+    def __init__ (self, fit, inds, allx, ally, debug=False):
         """ """
 
         self.line_fit = fit
@@ -29,9 +29,7 @@ class LineFit:
         self.offset = (fit[0] * (y_bottom ** 2) + fit[1] * y_bottom + fit[2]) / 2 * self.xm_per_pix
 
         if debug:
-          #
-          # Let's print out all of the numbers here
-          # 
+          # Let's print out all of the parameters here
           print ("")
           print ("ym_per_pix = %.2f; xm_per_pix = %.2f" % (self.ym_per_pix, self.xm_per_pix))
           print ("A = %.4f" % fit_cr[0])

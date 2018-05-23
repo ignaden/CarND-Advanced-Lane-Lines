@@ -4,11 +4,10 @@ import pickle
 from os import path
 from camera import load_params
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-from matplotlib.figure import Figure 
 
 from linefit import LineFit
 from line import Line
+from preprocessor import FramePreProcessor
 
 class Lines:
     """ Contains information about both of the lines """
@@ -16,6 +15,9 @@ class Lines:
     def __init__ (self, runId, cameraCaleb, transParams, debug=False, output_dir="."):
       """ """
       self._currframe = 0
+      
+      # Will help us preprocess 
+      self._preprocessor = FramePreProcessor(cameraCaleb, transParams)
 
       self._debug = debug             # Are we in debug mode?
       self._runId = runId             # Run ID of all the current
@@ -50,7 +52,8 @@ class Lines:
         rightCandidate = LineFit.new_line_fit(warped, self._params, isLeft=False)
 
       # Now that we should have some fits, let's see whether we can apply them!
-      # TODO: maybe these should be done one-by-one?
+
+      # TODO: ideally, we should consider these separately!
       if LineFit.is_good_fit(leftCandidate, rightCandidate):
         # use these to update the current ones
         if self._debug:
@@ -61,6 +64,7 @@ class Lines:
       else:
         if self._debug:
           print ("Will use last good fit :(")
+
         self._leftLine.use_last_good_fit()
         self._rightLine.use_last_good_fit()
 
@@ -104,6 +108,7 @@ class Lines:
       cv2.fillPoly(window_img, np.int_([left_line_pts]),  (0, 255, 0))
       cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
 
+      # Add the resulting overlaid image on top of this
       result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
       # Now draw out the fitted curves!
@@ -112,50 +117,8 @@ class Lines:
       points = np.vstack((right_fitx, ploty)).astype(np.int32).T
       result = cv2.polylines(result, [points], False, (255,255,0), 10)
 
+      # 
       return result
-
-    @staticmethod
-    def abs_sobel_thresh(img, orient='x', thresh_min=0, thresh_max=255):
-        # Apply x or y gradient with the OpenCV Sobel() function
-        # and take the absolute value
-        if orient == 'x':
-            abs_sobel = np.absolute(cv2.Sobel(img, cv2.CV_64F, 1, 0))
-        if orient == 'y':
-            abs_sobel = np.absolute(cv2.Sobel(img, cv2.CV_64F, 0, 1))
-        # Rescale back to 8 bit integer
-        scaled_sobel = np.uint8(255*abs_sobel/np.max(abs_sobel))
-        # Create a copy and apply the threshold
-        binary_output = np.zeros_like(scaled_sobel)
-        # Here I'm using inclusive (>=, <=) thresholds, but exclusive is ok too
-        binary_output[(scaled_sobel >= thresh_min) & (scaled_sobel <= thresh_max)] = 1
-
-        # Return the result
-        return binary_output
-
-    def translate_color (self, img):
-        """ Perform color transform """
-        
-        img = np.copy(img)
-        
-        # Convert to HLS color space and separate the V channel
-        hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
-        l_channel = hls[:,:,1]
-        s_channel = hls[:,:,2]
-        
-        # Sobel x
-        min_thresh, max_thresh = self._params['color_trans']['sx_thresh']
-        sxbinary = self.abs_sobel_thresh(l_channel, orient='x', thresh_min = min_thresh, thresh_max = max_thresh)
-        sybinary = self.abs_sobel_thresh(l_channel, orient='y', thresh_min = min_thresh, thresh_max = max_thresh)
-        
-        # Threshold color channel
-        s_binary = np.zeros_like(s_channel)
-        s_binary[(s_channel >= self._params['color_trans']['s_thresh'][0]) & 
-                 (s_channel <= self._params['color_trans']['s_thresh'][1])] = 1
-                        
-        combined = np.zeros_like(s_binary)
-        combined[(sxbinary == 1) | (s_binary == 1)] = 1
-
-        return combined
 
     def overlay_green_zone (self, undist, warped, Minv):
         """ overlay_green_zone - draw out the green zone here. """
@@ -191,11 +154,16 @@ class Lines:
         return cv2.addWeighted(undist, 1, newwarp, 0.3, 0)
     
     def make_out_path (self, img_type):
-        return path.join(self._output_dir, "%d_%s.jpg" % (self._runId, img_type))
+      """ Create a path for storing images """
+
+      return path.join(self._output_dir, "%d_%s.jpg" % (self._runId, img_type))
 
     def overlay_data (self, img_greenzone, gray_bin, warped, lines):
+        """ Create a frame with overlaid thumbnail images """
+
         # Now draw out the current curvature, center of the lane, etc.
         height, width  = img_greenzone.shape[0], img_greenzone.shape[1]
+
         # Create the thumbmail images
         thumb_h, thumb_w = int(height * self._params['thumb_ratio']), int(width * self._params['thumb_ratio'])
         thumb_size = (thumb_w, thumb_h)
@@ -217,13 +185,11 @@ class Lines:
         mask = cv2.rectangle(img_greenzone.copy(), (0, 0), (2 * off_x + thumb_w, height), (0, 0, 0), thickness=cv2.FILLED)
         img_blend = cv2.addWeighted(src1 = mask, alpha = 0.2, src2 = img_greenzone, beta = 0.8, gamma = 0)
 
-        # Stitch thumbnails here
         img_blend[off_y : off_y + thumb_h, off_x : off_x + thumb_w, :] = thumb_gray_bin
-  
-        if not (lines is None):
-          img_blend[2 * off_y + thumb_h : 2 * (off_y + thumb_h), off_x : off_x + thumb_w, :] = thumb_lines
+        img_blend[2 * off_y + thumb_h : 2 * (off_y + thumb_h), off_x : off_x + thumb_w, :] = thumb_warped
 
-        img_blend[3 * off_y + 2 * thumb_h : 3 * (off_y + thumb_h), off_x : off_x + thumb_w, :] = thumb_warped
+        if not (lines is None):
+          img_blend[3 * off_y + 2 * thumb_h : 3 * (off_y + thumb_h), off_x : off_x + thumb_w, :] = thumb_lines
         
         if not (self._leftLine.radius_of_curvature is None or self._rightLine.radius_of_curvature is None):
           curv = (self._leftLine.radius_of_curvature + self._rightLine.radius_of_curvature) / 2.0
@@ -236,6 +202,7 @@ class Lines:
           # Write out the curvatures - left, right and avg
           cv2.putText(img_blend, 'Curvature : %10.0fm' % curv, (400, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
           cv2.putText(img_blend, 'Offset: %.2fm' % offset, (860, 60), font, 0.9, (255, 255, 255), 2, cv2.LINE_AA)
+          
         else:
           
           font = cv2.FONT_HERSHEY_SIMPLEX
@@ -250,7 +217,7 @@ class Lines:
 
         # Step 1: Undistort the image
         try:
-          undist = self.undistort_img(img, self._cameraCaleb)
+          undist = self._preprocessor.undistort_img(img)
         except Exception as e:
           raise Exception ('Failed to undistort [%s]' % str(e))
 
@@ -271,10 +238,11 @@ class Lines:
 
         # Step 2: Color and gradient calculations
         try:
-          gray_bin = self.translate_color (undist)
+          gray_bin = self._preprocessor.translate_color (undist)
           if self._debug: print ('Color and gradient calculations')
         except Exception as e:
           raise Exception ('Failed to run color pipeline [%s]' % str(e))
+
         if self._debug:
           outpath = self.make_out_path("gray")
           print ('Writing out gray file to ' + outpath)
@@ -290,7 +258,7 @@ class Lines:
 
         # Step 3: Transformation
         try:
-          warped, M, Minv = self.transform(gray_bin)
+          warped, M, Minv = self._preprocessor.transform(gray_bin)
           if self._debug: print ('Transformation')
         except Exception as e:
           raise Exception ('Failed to transform [%s]' % str(e))
@@ -335,43 +303,7 @@ class Lines:
           plt.imshow(img_greenzone)
           plt.savefig(outpath)
 
-          # Let's plot before and after!
-
         if overlay and lines is not None:
           img_greenzone = self.overlay_data (img_greenzone, gray_bin, warped, lines)
 
-          outpath = self.make_out_path("greenzone_with_data")
-          plt.clf()
-          plt.imshow(img_greenzone)
-          plt.savefig(outpath)    
-
         return img_greenzone
-    
-    @staticmethod
-    def undistort_img(img, cameraCaleb):
-        return cv2.undistort(img, cameraCaleb['mtx'], cameraCaleb['dist'], None, cameraCaleb['mtx'])
-
-    # Define a function that takes an image, number of x and y points, 
-    # camera matrix and distortion coefficients
-    @staticmethod
-    def transform(img):
-
-        # Get the dimensions
-        width, height = img.shape[1], img.shape[0]
-        img_size = (width, height)
-
-        # define the trapezoid
-
-        src = np.float32([[605, 445], [685, 445],
-                          [1063, 676], [260, 676]])
-        
-        dst = np.float32([[width * 0.35, 0], [width * 0.65, 0], 
-                          [width * 0.65, height], [ width * 0.35, height]])
-
-        # Given src and dst points, calculate the perspective transform matrix
-        M = cv2.getPerspectiveTransform(src, dst)
-        Minv = cv2.getPerspectiveTransform(dst, src)
-
-        # Warp the image using OpenCV warpPerspective()
-        return cv2.warpPerspective(img, M, (int(width), int(height)), flags=cv2.INTER_LINEAR), M, Minv
-    

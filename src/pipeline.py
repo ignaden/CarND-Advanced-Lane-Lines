@@ -40,19 +40,18 @@ def run_video(params):
     global lines
     lines = Lines(0, cameraCaleb, params, False, "video")
 
-    # White how?
-    white_output = '../output_videos/project_video.mp4'
+    target = '../output_videos/project_video.mp4'
 
     # video clip
-    clip1 = VideoFileClip("../input_videos/project_video.mp4") #.subclip(0,40)
+    clip = VideoFileClip("../input_videos/project_video.mp4") #.subclip(0,40)
 
     #clip1.save_frame("frame.jpg", t=12)
     #return
 
-    white_clip = clip1.fl_image(process_image)
+    tgt_clip = clip.fl_image(process_image)
 
     # save the clip
-    white_clip.write_videofile(white_output, audio=False)
+    tgt_clip.write_videofile(target, audio=False)
 
 
 params = {
@@ -74,17 +73,16 @@ params = {
 
 if __name__ == "__main__":
 
-  # run test images
-  #try:
-  #  run_test_images(params)
-  #except Exception as e:
-  #  print ("Failed to run test images [%s]" % str(e))
-    
-  #sys.exit(0)
-  #import sys
+  if False:
+    # Run test images
+    try:
+      run_test_images(params)
+    except Exception as e:
+      print ("Failed to run test images [%s]" % str(e))
 
-  # do the video processing
-  try:
-    run_video(params)
-  except Exception as e:
-      print ('Failed to run video translation [%s]' % str(e))
+  else:
+    # Do the video processing
+    try:
+      run_video(params)
+    except Exception as e:
+        print ('Failed to run video translation [%s]' % str(e))
