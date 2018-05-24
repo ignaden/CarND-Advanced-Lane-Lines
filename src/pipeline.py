@@ -12,46 +12,41 @@ import matplotlib.pyplot as plt
 cameraCaleb = load_params()
 
 def run_test_images(params):
-    """ Run all of the test images """
+  """ Run all of the test images """
 
-    for idx, g in enumerate(glob.glob("../test_images/*.jpg")):
-        print ("processing [%s]" % g)
+  for idx, g in enumerate(glob.glob("../test_images/*.jpg")):
+    print ("processing [%s]" % g)
 
-        l = Lines(idx, cameraCaleb, params, True, "test_output")
-        img = l.process_frame (mpimg.imread(g), True)
+    l = Lines(idx, cameraCaleb, params, debug=True, output_dir="../test_images_output")
+    img = l.process_frame (mpimg.imread(g), True)
 
-        outpath = "../test_images_output/test_%d.jpg" % idx
-        outpath_hist = "../test_images_output/test_hist%d.jpg" % idx
 
-        plt.clf()
-        plt.imshow(img)
-        plt.savefig(outpath)
-
+# This will be used globally when processing the video
 lines = None
 
 def process_image(img):
-    """ """
-    global lines
-    return lines.process_frame(img, True)
+  """ """
+  global lines
+  return lines.process_frame(img, True)
 
 def run_video(params):
 
-    # Global lines object
-    global lines
-    lines = Lines(0, cameraCaleb, params, False, "video")
+  # Global lines object
+  global lines
+  lines = Lines(0, cameraCaleb, params, False, "video")
 
-    target = '../output_videos/project_video.mp4'
+  target = '../output_videos/project_video.mp4'
 
-    # video clip
-    clip = VideoFileClip("../input_videos/project_video.mp4") #.subclip(0,40)
+  # video clip
+  clip = VideoFileClip("../input_videos/project_video.mp4") #.subclip(0,40)
 
-    #clip1.save_frame("frame.jpg", t=12)
-    #return
+  #clip1.save_frame("frame.jpg", t=12)
+  #return
 
-    tgt_clip = clip.fl_image(process_image)
+  tgt_clip = clip.fl_image(process_image)
 
-    # save the clip
-    tgt_clip.write_videofile(target, audio=False)
+  # save the clip
+  tgt_clip.write_videofile(target, audio=False)
 
 
 params = {
@@ -74,7 +69,9 @@ params = {
 if __name__ == "__main__":
 
   if False:
+    #
     # Run test images
+    #
     try:
       run_test_images(params)
     except Exception as e:

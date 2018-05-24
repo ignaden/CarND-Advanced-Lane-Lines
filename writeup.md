@@ -48,16 +48,17 @@ The steps are as follows:
 Here's an example of an image that's been undistorted by the camera effect:
 ![alt text][image1]
 
-Note that for 3 (out of 20) images, CV2 could not locate the points.
+Note that for 3 (out of 20) images, CV2 could not locate the points. I presume this is a property of the CV2 algorithm.
 
 ### Pipeline (single images)
 
 #### 1. Provide an example of a distortion-corrected image.
 
 Here's an example:
+
 ![alt text][image2]
 
-#### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
+#### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image. Provide an example of a binary image result.
 
 All of the steps prior to finding actual lanes are contained within `src/preprocessor.py` file.
 
@@ -81,14 +82,14 @@ The code for my perspective transform includes a function called `warper()`, whi
                       [width * 0.35, height]])
 ```
 
-This resulted in the following source and destination points:
+With height equal to `720` and width to `1280`, this resulted in the following source and destination points:
 
 | Source        | Destination   |
 |:-------------:|:-------------:|
-| 605, 445      | 320, 0        |
-| 685, 445      | 320, 720      |
-| 1063, 676     | 960, 720      |
-| 260, 676      | 960, 0        |
+| 605, 445      | 448, 0        |
+| 685, 445      | 448, 720      |
+| 1063, 676     | 832, 720      |
+| 260, 676      | 832, 0        |
 
 
 Here's an example of the transformation:
@@ -99,18 +100,13 @@ Here's an example of the transformation:
 All of the code for lane/line fitting is contained within `src/linefit.py` - it's based on the code provided by the course materials.
 
 There're two modes of lane detection:
-- In cases where we have no prior lanes detected or the last detection did not converge (I describe criteria below).
-- When we update existing lane fits
-
-##### Creating new fits
-- Code: `new_line_fit`, lines 41 to 138 in `src/linefit.py`
-- We use other stuff as well... 
-- 
-
-##### Updating existing fits
-- Code: `update_fit`, lines 141 to 175 in `src/linefit.py`
-- We use existing fit data to do something cool...
-
+- Create new fits (`new_line_fit`, lines 41 to 138 in `src/linefit.py`):
+ - As per course material, I create a number of stacked windows for each lane
+ - All of the non-zero X points within the windows are used to 
+ 
+- Update existing ones (`update_fit`, lines 141 to 175 in `src/linefit.py`):
+    - In cases where we have no prior lanes detected or the last detection did not converge (I describe criteria below).
+    - The process is similar to the one above, except that we use the existing curve fits to identify the centers of the windows.
 
 
 ![alt text][image5]
@@ -130,9 +126,6 @@ The code implements formulas provided in course materials. The basic principle i
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-
-All of the steps required to process an incoming frame, create new or update existing lane fits and 
-
 ![alt text][image6]
 
 ---
@@ -149,14 +142,14 @@ Here's a [link to my video result](./output_videos/project_video.mp4)
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-The biggest challenge I faced was ensuring that the noise from bright areas of the road would not mess up the fits of the curves. I have encoded a small test - that the distance between points at the top is not signficantly different from the distance of between the bottom points. If the difference between the distances is over a configurable threshold, then the fits would not be updated. 
+The biggest challenge I faced was ensuring that the noise from bright areas of the road would not interfere with curve fitting. I have encoded a small test - that the distance between points at the top is not signficantly different from the distance of between those at the bottom. If the difference between the distances is over a configurable threshold, then the fits would not be updated - i.e. the frame uses old fit data.
 
-Here's the function to estimate this:
+Here's the function that estimates this:
 ```python
 @staticmethod
 def is_good_fit (leftLine, rightLine):
     """ It's a good fit if the distance between the lines at the top is similar to the bottom. """
-        
+    
     max_dist = 0.10
 
     lf = leftLine.line_fit

@@ -187,7 +187,7 @@ class LineFit:
         lf = leftLine.line_fit
         rf = rightLine.line_fit
 
-        y_top, y_mid, y_bottom = 0, 350, 719
+        y_top, y_mid, y_bottom = 0, 719, 350
 
         left_fitx_top = lf[0]*y_top**2 + lf[1]*y_top + lf[2]
         right_fitx_top = rf[0]*y_top**2 + rf[1]*y_top + rf[2]

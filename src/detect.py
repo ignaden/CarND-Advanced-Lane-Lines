@@ -43,12 +43,12 @@ class Lines:
         
       if self._rightLine.fit_exists() and not alwaysNew:
         if self._debug:
-          print("Will look to update existing fit for left line!")
+          print("Will look to update existing fit for right line!")
         rightCandidate = LineFit.update_fit(self._rightLine.best_fit, warped, self._params, isLeft=False)
       else:
         # Try to fit a new one
         if self._debug:
-          print ("Will look to create a new fit altogether!")
+          print ("Will look to create a new fit for right line!")
         rightCandidate = LineFit.new_line_fit(warped, self._params, isLeft=False)
 
       # Now that we should have some fits, let's see whether we can apply them!
