@@ -20,7 +20,6 @@ def run_test_images(params):
     l = Lines(idx, cameraCaleb, params, debug=True, output_dir="../test_images_output")
     img = l.process_frame (mpimg.imread(g), True)
 
-
 # This will be used globally when processing the video
 lines = None
 
@@ -68,7 +67,7 @@ params = {
 
 if __name__ == "__main__":
 
-  if False:
+  if True:
     #
     # Run test images
     #

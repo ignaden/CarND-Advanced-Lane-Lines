@@ -29,7 +29,6 @@ def calibrate_camera(debug=True):
 
   #
   # chessboard size is different in this one
-  #
   nx, ny = 9, 6
 
   objp = np.zeros((nx * ny, 3), np.float32)
@@ -87,7 +86,7 @@ def calibrate_camera(debug=True):
     cv2.drawChessboardCorners(undist, (nx, ny), corners, ret)
 
     hor = np.hstack((img, undist))
-    cv2.imwrite ('../writeup_images/undistorted_output.png', hor)
+    cv2.imwrite ('../writeup_images/undistorted.jpg', hor)
 
   cameraCaleb = {
     'ret' : ret
